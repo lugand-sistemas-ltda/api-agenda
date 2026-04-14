@@ -5,6 +5,7 @@ import com.sri.agenda.dto.UsuarioDTO;
 import com.sri.agenda.entity.Compromisso;
 import com.sri.agenda.entity.Usuario;
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -72,7 +73,7 @@ public class CompromissoResource {
     @POST
     @Transactional
     @Operation(summary = "Criar compromisso")
-    public Response criar(CompromissoDTO.Request req) {
+    public Response criar(@Valid CompromissoDTO.Request req) {
         Usuario responsavel = Usuario.findById(req.responsavelId);
         if (responsavel == null) {
             return Response.status(Response.Status.BAD_REQUEST)
@@ -110,7 +111,7 @@ public class CompromissoResource {
     @Path("/{id}")
     @Transactional
     @Operation(summary = "Atualizar compromisso")
-    public Response atualizar(@PathParam("id") UUID id, CompromissoDTO.Request req) {
+    public Response atualizar(@PathParam("id") UUID id, @Valid CompromissoDTO.Request req) {
         Compromisso c = Compromisso.findById(id);
         if (c == null) return Response.status(Response.Status.NOT_FOUND).build();
 

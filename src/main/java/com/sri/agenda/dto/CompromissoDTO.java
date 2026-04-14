@@ -2,6 +2,8 @@ package com.sri.agenda.dto;
 
 import com.sri.agenda.entity.CompromissoStatus;
 import com.sri.agenda.entity.CompromissoTipo;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,15 +29,28 @@ public class CompromissoDTO {
     // Request payload (criação e edição)
     // -------------------------------------------------------------------------
     public static class Request {
+        @NotBlank(message = "Título é obrigatório")
         public String titulo;
+
         public String descricao;
+
+        @NotNull(message = "Tipo é obrigatório")
         public CompromissoTipo tipo;
+
         public CompromissoStatus status;
+
+        @NotNull(message = "Data de início é obrigatória")
         public LocalDateTime dataInicio;
+
+        @NotNull(message = "Data de término é obrigatória")
         public LocalDateTime dataFim;
+
         public String local;
         public String observacoes;
+
+        @NotNull(message = "Responsável é obrigatório")
         public UUID responsavelId;
+
         public List<UUID> outrosResponsaveisIds;
     }
 }

@@ -3,6 +3,7 @@ package com.sri.agenda.resource;
 import com.sri.agenda.dto.UsuarioDTO;
 import com.sri.agenda.entity.Usuario;
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -40,7 +41,7 @@ public class UsuarioResource {
     @POST
     @Transactional
     @Operation(summary = "Criar usuário")
-    public Response criar(UsuarioDTO.Request req) {
+    public Response criar(@Valid UsuarioDTO.Request req) {
         Usuario u = new Usuario();
         u.nome  = req.nome;
         u.email = req.email;
@@ -52,7 +53,7 @@ public class UsuarioResource {
     @Path("/{id}")
     @Transactional
     @Operation(summary = "Atualizar usuário")
-    public Response atualizar(@PathParam("id") UUID id, UsuarioDTO.Request req) {
+    public Response atualizar(@PathParam("id") UUID id, @Valid UsuarioDTO.Request req) {
         Usuario u = Usuario.findById(id);
         if (u == null) return Response.status(Response.Status.NOT_FOUND).build();
         u.nome  = req.nome;
