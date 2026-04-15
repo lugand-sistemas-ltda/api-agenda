@@ -7,8 +7,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Item de agenda base (ADR-005).
+ * Tabela renomeada compromisso → item_agenda na V3.
+ * Classe mantém nome Compromisso para compatibilidade com o Resource existente;
+ * será renomeada para ItemAgenda na Iteração 2 quando JPA inheritance for adotado (ADR-005 IA-008).
+ */
 @Entity
-@Table(name = "compromisso")
+@Table(name = "item_agenda", schema = "agenda")
 public class Compromisso extends PanacheEntityBase {
 
     @Id
@@ -22,11 +28,26 @@ public class Compromisso extends PanacheEntityBase {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    public CompromissoTipo tipo;
+    public ItemTipo tipo;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    public CompromissoStatus status = CompromissoStatus.pendente;
+    public ItemStatus status = ItemStatus.pendente;
+
+    /**
+     * Driver visual no calendário (ADR-005 IA-002, ADR-002 PA-011).
+     * Use este campo — não 'tipo' — para decidir como renderizar no front-end.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    public ItemRenderizacao renderizacao = ItemRenderizacao.evento;
+
+    /**
+     * Indica presença física obrigatória do responsável (ADR-005 IA-003).
+     * Quando true, o item participa da verificação de conflito CONFLITO-B (RN-008).
+     */
+    @Column(name = "exige_presenca", nullable = false)
+    public boolean exigePresenca = false;
 
     @Column(name = "data_inicio", nullable = false)
     public LocalDateTime dataInicio;
@@ -38,14 +59,32 @@ public class Compromisso extends PanacheEntityBase {
 
     public String observacoes;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "responsavel_id", nullable = false)
+    /** Nullable: itens fundo_dia (feriados, etc.) não têm responsável. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "responsavel_id")
     public Usuario responsavel;
+
+    /**
+     * Agenda a que este item pertence (ADR-006 AG-001).
+     * Determina em qual calendário o item aparece.
+     */
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "agenda_id", nullable = false)
+    public Agenda agenda;
+
+    /**
+     * Item pai: usado para containment de eventos dentro de períodos (ADR-005 IA-007).
+     * Null para itens de nível raiz.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "item_pai_id")
+    public Compromisso itemPai;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
-        name = "compromisso_responsavel",
-        joinColumns = @JoinColumn(name = "compromisso_id"),
+        name = "item_responsavel",
+        schema = "agenda",
+        joinColumns = @JoinColumn(name = "item_id"),
         inverseJoinColumns = @JoinColumn(name = "usuario_id")
     )
     public List<Usuario> outrosResponsaveis = new ArrayList<>();
@@ -71,13 +110,22 @@ public class Compromisso extends PanacheEntityBase {
         return find("dataInicio >= ?1 AND dataInicio <= ?2", inicio, fim).list();
     }
 
-    public static List<Compromisso> findByResponsavelNoIntervalo(UUID responsavelId,
-                                                                  LocalDateTime inicio,
-                                                                  LocalDateTime fim) {
-        return find(
-            "(responsavel.id = ?1 OR ?1 IN (SELECT r.id FROM outrosResponsaveis r)) " +
-            "AND dataInicio < ?3 AND dataFim > ?2",
-            responsavelId, inicio, fim
-        ).list();
+    /**
+     * Retorna itens que conflitam com o intervalo para um dado responsável.
+     * Aplica-se apenas a itens com exigePresenca = true (CONFLITO-B, ADR-005 IA-006).
+     */
+    public static List<Compromisso> findConflitos(UUID responsavelId,
+                                                   LocalDateTime inicio,
+                                                   LocalDateTime fim,
+                                                   UUID excluirId) {
+        String q = "exigePresenca = true " +
+                   "AND responsavel.id = ?1 " +
+                   "AND dataInicio < ?3 " +
+                   "AND dataFim > ?2";
+        if (excluirId != null) {
+            return find(q + " AND id != ?4", responsavelId, inicio, fim, excluirId).list();
+        }
+        return find(q, responsavelId, inicio, fim).list();
     }
 }
+

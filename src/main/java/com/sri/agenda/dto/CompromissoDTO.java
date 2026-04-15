@@ -1,7 +1,8 @@
 package com.sri.agenda.dto;
 
-import com.sri.agenda.entity.CompromissoStatus;
-import com.sri.agenda.entity.CompromissoTipo;
+import com.sri.agenda.entity.ItemRenderizacao;
+import com.sri.agenda.entity.ItemStatus;
+import com.sri.agenda.entity.ItemTipo;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
@@ -14,14 +15,18 @@ public class CompromissoDTO {
     public UUID id;
     public String titulo;
     public String descricao;
-    public CompromissoTipo tipo;
-    public CompromissoStatus status;
+    public ItemTipo tipo;
+    public ItemStatus status;
+    public ItemRenderizacao renderizacao;
+    public boolean exigePresenca;
     public LocalDateTime dataInicio;
     public LocalDateTime dataFim;
     public String local;
     public String observacoes;
     public UsuarioDTO responsavel;
     public List<UsuarioDTO> outrosResponsaveis;
+    public UUID agendaId;
+    public UUID itemPaiId;
     public LocalDateTime criadoEm;
     public LocalDateTime atualizadoEm;
 
@@ -35,9 +40,15 @@ public class CompromissoDTO {
         public String descricao;
 
         @NotNull(message = "Tipo é obrigatório")
-        public CompromissoTipo tipo;
+        public ItemTipo tipo;
 
-        public CompromissoStatus status;
+        public ItemStatus status;
+
+        /** Se não informado, herdado do tipo via defaults (ADR-005 IA-003). */
+        public ItemRenderizacao renderizacao;
+
+        /** Se não informado, herdado do tipo via defaults (ADR-005 IA-003). */
+        public Boolean exigePresenca;
 
         @NotNull(message = "Data de início é obrigatória")
         public LocalDateTime dataInicio;
@@ -48,9 +59,19 @@ public class CompromissoDTO {
         public String local;
         public String observacoes;
 
-        @NotNull(message = "Responsável é obrigatório")
+        /**
+         * Obrigatório para renderizacao = evento.
+         * Opcional / ignorado para renderizacao = fundo_dia.
+         */
         public UUID responsavelId;
 
         public List<UUID> outrosResponsaveisIds;
+
+        /** Agenda de destino. Se null, usa agenda da unidade padrão. */
+        public UUID agendaId;
+
+        /** Para containment: ID do período pai (ADR-005 IA-007). */
+        public UUID itemPaiId;
     }
 }
+

@@ -1,6 +1,6 @@
 package com.sri.agenda.entity;
 
-public enum CompromissoStatus {
+public enum ItemStatus {
     confirmado,
     pendente,
     cancelado
