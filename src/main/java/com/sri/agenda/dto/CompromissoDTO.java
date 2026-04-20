@@ -3,6 +3,7 @@ package com.sri.agenda.dto;
 import com.sri.agenda.entity.ItemRenderizacao;
 import com.sri.agenda.entity.ItemStatus;
 import com.sri.agenda.entity.ItemTipo;
+import com.sri.agenda.entity.ItemVisibilidade;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
@@ -27,6 +28,7 @@ public class CompromissoDTO {
     public List<UsuarioDTO> outrosResponsaveis;
     public UUID agendaId;
     public UUID itemPaiId;
+    public ItemVisibilidade visibilidade;
     public LocalDateTime criadoEm;
     public LocalDateTime atualizadoEm;
 
@@ -72,6 +74,9 @@ public class CompromissoDTO {
 
         /** Para containment: ID do período pai (ADR-005 IA-007). */
         public UUID itemPaiId;
+
+        /** Visibilidade do item (ADR-007 VIS-002). Se null, usa 'privado'. */
+        public ItemVisibilidade visibilidade;
     }
 }
 

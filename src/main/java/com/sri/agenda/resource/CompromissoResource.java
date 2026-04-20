@@ -157,6 +157,11 @@ public class CompromissoResource {
         }
         c.agenda = agenda;
 
+        // Visibilidade (ADR-007 VIS-002): usa valor do request ou mantém default 'privado'
+        if (req.visibilidade != null) {
+            c.visibilidade = req.visibilidade;
+        }
+
         // Item pai (containment)
         if (req.itemPaiId != null) {
             Compromisso pai = Compromisso.findById(req.itemPaiId);
@@ -266,6 +271,7 @@ public class CompromissoResource {
         dto.observacoes    = c.observacoes;
         dto.agendaId       = c.agenda != null ? c.agenda.id : null;
         dto.itemPaiId      = c.itemPai != null ? c.itemPai.id : null;
+        dto.visibilidade   = c.visibilidade;
         dto.criadoEm       = c.criadoEm;
         dto.atualizadoEm   = c.atualizadoEm;
 

@@ -73,6 +73,22 @@ public class Compromisso extends PanacheEntityBase {
     public Agenda agenda;
 
     /**
+     * Visibilidade do item (ADR-007 VIS-002).
+     * Determina quem pode visualizar este item — orthogonal a tipo e renderizacao.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    public ItemVisibilidade visibilidade = ItemVisibilidade.privado;
+
+    /**
+     * Usuário que criou o item (ADR-007 VIS-006).
+     * Nullable na PoC; obrigatório após autenticação JWT (Iteração 3).
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "criado_por_id")
+    public Usuario criadoPor;
+
+    /**
      * Item pai: usado para containment de eventos dentro de períodos (ADR-005 IA-007).
      * Null para itens de nível raiz.
      */
