@@ -7,6 +7,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+@SuppressWarnings("unchecked")
+
 /**
  * Item de agenda base (ADR-005).
  * Tabela renomeada compromisso → item_agenda na V3.
@@ -142,6 +144,71 @@ public class Compromisso extends PanacheEntityBase {
             return find(q + " AND id != ?4", responsavelId, inicio, fim, excluirId).list();
         }
         return find(q, responsavelId, inicio, fim).list();
+    }
+
+    /**
+     * Retorna todos os itens visíveis para um usuário em um intervalo de datas.
+     * Implementa VIS-004 (ADR-007): 5 cláusulas de visibilidade via UNION ALL.
+     *
+     * @param usuarioId ID do usuário consultante
+     * @param inicio    início do intervalo (inclusive)
+     * @param fim       fim do intervalo (inclusive)
+     */
+    public static List<Compromisso> findVisiveis(UUID usuarioId,
+                                                  LocalDateTime inicio,
+                                                  LocalDateTime fim) {
+        String sql =
+            // 1. Globais (feriados, calendário de sistema)
+            "SELECT i.* FROM agenda.item_agenda i " +
+            "WHERE i.visibilidade = 'global' " +
+            "  AND i.data_inicio <= ?3 AND i.data_fim >= ?2 " +
+
+            "UNION ALL " +
+
+            // 2. Pessoais do próprio usuário
+            "SELECT i.* FROM agenda.item_agenda i " +
+            "JOIN agenda.agenda a ON a.id = i.agenda_id " +
+            "WHERE i.visibilidade = 'privado' " +
+            "  AND a.tipo = 'pessoal' AND a.proprietario_id = ?1 " +
+            "  AND i.data_inicio <= ?3 AND i.data_fim >= ?2 " +
+
+            "UNION ALL " +
+
+            // 3. Nível unidade (ponto_facultativo, recesso)
+            "SELECT i.* FROM agenda.item_agenda i " +
+            "JOIN agenda.agenda a ON a.id = i.agenda_id " +
+            "JOIN agenda.grupo g ON g.id = a.grupo_id " +
+            "JOIN agenda.grupo_membro gm ON gm.grupo_id = g.id " +
+            "WHERE i.visibilidade = 'unidade' " +
+            "  AND gm.usuario_id = ?1 " +
+            "  AND i.data_inicio <= ?3 AND i.data_fim >= ?2 " +
+
+            "UNION ALL " +
+
+            // 4. Nível grupo (membros do grupo da agenda)
+            "SELECT i.* FROM agenda.item_agenda i " +
+            "JOIN agenda.agenda a ON a.id = i.agenda_id " +
+            "JOIN agenda.grupo_membro gm ON gm.grupo_id = a.grupo_id " +
+            "WHERE i.visibilidade = 'grupo' " +
+            "  AND gm.usuario_id = ?1 " +
+            "  AND i.data_inicio <= ?3 AND i.data_fim >= ?2 " +
+
+            "UNION ALL " +
+
+            // 5. Selecionado: grupos explicitamente listados em item_grupo_destino
+            "SELECT i.* FROM agenda.item_agenda i " +
+            "JOIN agenda.item_grupo_destino igd ON igd.item_id = i.id " +
+            "JOIN agenda.grupo_membro gm ON gm.grupo_id = igd.grupo_id " +
+            "WHERE i.visibilidade = 'selecionado' " +
+            "  AND gm.usuario_id = ?1 " +
+            "  AND i.data_inicio <= ?3 AND i.data_fim >= ?2";
+
+        return (List<Compromisso>) getEntityManager()
+            .createNativeQuery(sql, Compromisso.class)
+            .setParameter(1, usuarioId)
+            .setParameter(2, inicio)
+            .setParameter(3, fim)
+            .getResultList();
     }
 }
 

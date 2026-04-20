@@ -32,13 +32,33 @@ public class CompromissoResource {
     // -------------------------------------------------------------------------
 
     @GET
-    @Operation(summary = "Listar itens de agenda. Filtros opcionais: ano, mes, dia, agendaId")
+    @Operation(summary = "Listar itens de agenda. Filtros: usuarioId (VIS-004) ou agendaId; combinável com ano+mes ou ano+mes+dia")
     public List<CompromissoDTO> listar(
-        @QueryParam("ano")      Integer ano,
-        @QueryParam("mes")      Integer mes,
-        @QueryParam("dia")      Integer dia,
-        @QueryParam("agendaId") UUID agendaId
+        @QueryParam("ano")       Integer ano,
+        @QueryParam("mes")       Integer mes,
+        @QueryParam("dia")       Integer dia,
+        @QueryParam("agendaId")  UUID agendaId,
+        @QueryParam("usuarioId") UUID usuarioId
     ) {
+        // Quando usuarioId está presente, aplica VIS-004 (ADR-007) independente dos demais filtros
+        if (usuarioId != null) {
+            LocalDateTime inicio;
+            LocalDateTime fim;
+            if (ano != null && mes != null && dia != null) {
+                inicio = LocalDate.of(ano, mes, dia).atStartOfDay();
+                fim    = LocalDate.of(ano, mes, dia).atTime(23, 59, 59);
+            } else if (ano != null && mes != null) {
+                inicio = YearMonth.of(ano, mes).atDay(1).atStartOfDay();
+                fim    = YearMonth.of(ano, mes).atEndOfMonth().atTime(23, 59, 59);
+            } else {
+                // Sem recorte de data: usa mês atual como fallback
+                inicio = YearMonth.now().atDay(1).atStartOfDay();
+                fim    = YearMonth.now().atEndOfMonth().atTime(23, 59, 59);
+            }
+            return Compromisso.findVisiveis(usuarioId, inicio, fim)
+                .stream().map(this::toDTO).collect(Collectors.toList());
+        }
+
         List<Compromisso> resultado;
 
         if (ano != null && mes != null && dia != null) {
