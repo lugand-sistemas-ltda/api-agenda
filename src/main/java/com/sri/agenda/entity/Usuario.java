@@ -19,6 +19,12 @@ public class Usuario extends PanacheEntityBase {
     @Column(nullable = false, unique = true)
     public String email;
 
+    @Column(nullable = false, unique = true)
+    public String matricula;
+
+    @Column(name = "senha_hash", nullable = false)
+    public String senhaHash;
+
     @Column(name = "criado_em", nullable = false, updatable = false)
     public LocalDateTime criadoEm = LocalDateTime.now();
 

@@ -9,6 +9,7 @@ public class UsuarioDTO {
     public UUID id;
     public String nome;
     public String email;
+    public String matricula;
 
     public static class Request {
         @NotBlank(message = "Nome é obrigatório")

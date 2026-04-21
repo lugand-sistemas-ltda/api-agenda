@@ -75,9 +75,10 @@ public class UsuarioResource {
     // -------------------------------------------------------------------------
     private UsuarioDTO toDTO(Usuario u) {
         UsuarioDTO dto = new UsuarioDTO();
-        dto.id    = u.id;
-        dto.nome  = u.nome;
-        dto.email = u.email;
+        dto.id        = u.id;
+        dto.nome      = u.nome;
+        dto.email     = u.email;
+        dto.matricula = u.matricula;
         return dto;
     }
 }
