@@ -23,13 +23,16 @@ public class AuthDTO {
         public String nome;
         public String email;
         public String matricula;
+        /** Papel do usuário na unidade (ex.: "gestor", "estagiario"). Null se não encontrado. */
+        public String papel;
 
-        public LoginResponse(String sessionId, String usuarioId, String nome, String email, String matricula) {
+        public LoginResponse(String sessionId, String usuarioId, String nome, String email, String matricula, String papel) {
             this.sessionId  = sessionId;
             this.usuarioId  = usuarioId;
             this.nome       = nome;
             this.email      = email;
             this.matricula  = matricula;
+            this.papel      = papel;
         }
     }
 }

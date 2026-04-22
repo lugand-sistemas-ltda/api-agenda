@@ -4,7 +4,9 @@ import com.sri.agenda.dto.CompromissoDTO;
 import com.sri.agenda.dto.UsuarioDTO;
 import com.sri.agenda.entity.Agenda;
 import com.sri.agenda.entity.Compromisso;
+import com.sri.agenda.entity.ItemParticipante;
 import com.sri.agenda.entity.ItemRenderizacao;
+import com.sri.agenda.entity.Sessao;
 import com.sri.agenda.entity.Usuario;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
@@ -130,7 +132,8 @@ public class CompromissoResource {
     @POST
     @Transactional
     @Operation(summary = "Criar item de agenda")
-    public Response criar(@Valid CompromissoDTO.Request req) {
+    public Response criar(@HeaderParam("X-Session-Id") String sessionId,
+                          @Valid CompromissoDTO.Request req) {
         Compromisso c = new Compromisso();
         c.titulo      = req.titulo;
         c.descricao   = req.descricao;
@@ -201,6 +204,17 @@ public class CompromissoResource {
         }
 
         c.persist();
+
+        // Registra participação (ADR-009 PM-003) — criador + responsável na item_participante.
+        // Requer sessão válida para identificar o criador; sem sessão, ignora silenciosamente
+        // (comportamento da PoC — Iteração 3 tornará a sessão obrigatória via ContainerRequestFilter).
+        UUID criadorId = resolverCriadorId(sessionId);
+        if (criadorId != null) {
+            c.criadoPor = Usuario.findById(criadorId);
+            UUID responsavelId = c.responsavel != null ? c.responsavel.id : criadorId;
+            ItemParticipante.registrarCriacao(c.id, criadorId, responsavelId);
+        }
+
         return Response.status(Response.Status.CREATED).entity(toDTO(c)).build();
     }
 
@@ -312,6 +326,21 @@ public class CompromissoResource {
         }).collect(Collectors.toList());
 
         return dto;
+    }
+
+    /**
+     * Resolve o UUID do criador a partir do header X-Session-Id.
+     * Retorna null se a sessão estiver ausente, inválida ou expirada.
+     */
+    private UUID resolverCriadorId(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) return null;
+        try {
+            return Sessao.findValid(UUID.fromString(sessionId))
+                    .map(s -> s.usuario.id)
+                    .orElse(null);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     /** Valor padrão de renderizacao baseado no tipo (ADR-005 IA-003). */

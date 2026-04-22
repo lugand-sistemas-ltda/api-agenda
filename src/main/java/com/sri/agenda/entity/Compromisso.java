@@ -148,7 +148,7 @@ public class Compromisso extends PanacheEntityBase {
 
     /**
      * Retorna todos os itens visíveis para um usuário em um intervalo de datas.
-     * Implementa VIS-004 (ADR-007): 5 cláusulas de visibilidade via UNION ALL.
+     * Implementa VIS-004 (ADR-007): 7 cláusulas de visibilidade via UNION ALL.
      *
      * @param usuarioId ID do usuário consultante
      * @param inicio    início do intervalo (inclusive)
@@ -165,7 +165,7 @@ public class Compromisso extends PanacheEntityBase {
 
             "UNION ALL " +
 
-            // 2. Pessoais do próprio usuário
+            // 2. Privados na própria agenda pessoal
             "SELECT i.* FROM agenda.item_agenda i " +
             "JOIN agenda.agenda a ON a.id = i.agenda_id " +
             "WHERE i.visibilidade = 'privado' " +
@@ -174,23 +174,39 @@ public class Compromisso extends PanacheEntityBase {
 
             "UNION ALL " +
 
-            // 3. Nível unidade (ponto_facultativo, recesso)
+            // 3. Nível unidade: todos os membros da unidade (ponto_facultativo, recesso)
             "SELECT i.* FROM agenda.item_agenda i " +
             "JOIN agenda.agenda a ON a.id = i.agenda_id " +
             "JOIN agenda.grupo g ON g.id = a.grupo_id " +
             "JOIN agenda.grupo_membro gm ON gm.grupo_id = g.id " +
             "WHERE i.visibilidade = 'unidade' " +
-            "  AND gm.usuario_id = ?1 " +
+            "  AND gm.usuario_id = ?1 AND gm.ativo = true " +
             "  AND i.data_inicio <= ?3 AND i.data_fim >= ?2 " +
 
             "UNION ALL " +
 
-            // 4. Nível grupo (membros do grupo da agenda)
+            // 4a. Grupo via agenda de unidade/grupo (agenda tem grupo_id preenchido)
             "SELECT i.* FROM agenda.item_agenda i " +
             "JOIN agenda.agenda a ON a.id = i.agenda_id " +
             "JOIN agenda.grupo_membro gm ON gm.grupo_id = a.grupo_id " +
             "WHERE i.visibilidade = 'grupo' " +
-            "  AND gm.usuario_id = ?1 " +
+            "  AND a.grupo_id IS NOT NULL " +
+            "  AND gm.usuario_id = ?1 AND gm.ativo = true " +
+            "  AND i.data_inicio <= ?3 AND i.data_fim >= ?2 " +
+
+            "UNION ALL " +
+
+            // 4b. Grupo via responsável: itens em agendas pessoais (sem grupo_id) onde
+            //     o responsável pertence ao mesmo grupo que o usuário consultante.
+            //     Permite que itens 'grupo' criados em agendas pessoais sejam visíveis
+            //     a todos os colegas do mesmo grupo.
+            "SELECT i.* FROM agenda.item_agenda i " +
+            "JOIN agenda.agenda a ON a.id = i.agenda_id " +
+            "JOIN agenda.grupo_membro gm_resp ON gm_resp.usuario_id = i.responsavel_id AND gm_resp.ativo = true " +
+            "JOIN agenda.grupo_membro gm_view ON gm_view.grupo_id = gm_resp.grupo_id " +
+            "  AND gm_view.usuario_id = ?1 AND gm_view.ativo = true " +
+            "WHERE i.visibilidade = 'grupo' " +
+            "  AND a.grupo_id IS NULL " +
             "  AND i.data_inicio <= ?3 AND i.data_fim >= ?2 " +
 
             "UNION ALL " +
@@ -200,7 +216,39 @@ public class Compromisso extends PanacheEntityBase {
             "JOIN agenda.item_grupo_destino igd ON igd.item_id = i.id " +
             "JOIN agenda.grupo_membro gm ON gm.grupo_id = igd.grupo_id " +
             "WHERE i.visibilidade = 'selecionado' " +
-            "  AND gm.usuario_id = ?1 " +
+            "  AND gm.usuario_id = ?1 AND gm.ativo = true " +
+            "  AND i.data_inicio <= ?3 AND i.data_fim >= ?2 " +
+
+            "UNION ALL " +
+
+            // 6. [PM-004 / ADR-009] Privado em agenda alheia onde o usuário é participante.
+            //    Mantido para backward-compat com itens 'privado' delegados via item_participante.
+            "SELECT i.* FROM agenda.item_agenda i " +
+            "JOIN agenda.agenda a ON a.id = i.agenda_id " +
+            "WHERE i.visibilidade = 'privado' " +
+            "  AND (a.proprietario_id IS NULL OR a.proprietario_id != ?1) " +
+            "  AND EXISTS ( " +
+            "    SELECT 1 FROM agenda.item_participante ip " +
+            "    WHERE ip.item_id = i.id " +
+            "      AND ip.usuario_id = ?1 " +
+            "      AND ip.visivel_na_agenda = true " +
+            "      AND (ip.aceito IS NULL OR ip.aceito = true) " +
+            "  ) " +
+            "  AND i.data_inicio <= ?3 AND i.data_fim >= ?2 " +
+
+            "UNION ALL " +
+
+            // 7. [VIS-007] Participante: visível apenas aos responsáveis listados em item_participante.
+            //    Funciona em qualquer tipo de agenda — não depende de agenda ou grupo.
+            "SELECT i.* FROM agenda.item_agenda i " +
+            "WHERE i.visibilidade = 'participante' " +
+            "  AND EXISTS ( " +
+            "    SELECT 1 FROM agenda.item_participante ip " +
+            "    WHERE ip.item_id = i.id " +
+            "      AND ip.usuario_id = ?1 " +
+            "      AND ip.visivel_na_agenda = true " +
+            "      AND (ip.aceito IS NULL OR ip.aceito = true) " +
+            "  ) " +
             "  AND i.data_inicio <= ?3 AND i.data_fim >= ?2";
 
         return (List<Compromisso>) getEntityManager()

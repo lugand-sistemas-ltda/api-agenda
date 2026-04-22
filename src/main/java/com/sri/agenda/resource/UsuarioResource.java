@@ -1,6 +1,7 @@
 package com.sri.agenda.resource;
 
 import com.sri.agenda.dto.UsuarioDTO;
+import com.sri.agenda.entity.GrupoMembro;
 import com.sri.agenda.entity.Usuario;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
@@ -21,8 +22,15 @@ import java.util.stream.Collectors;
 public class UsuarioResource {
 
     @GET
-    @Operation(summary = "Listar todos os usuários")
-    public List<UsuarioDTO> listar() {
+    @Operation(summary = "Listar usuários. Filtro opcional: grupoId (retorna apenas membros ativos do grupo)")
+    public List<UsuarioDTO> listar(@QueryParam("grupoId") UUID grupoId) {
+        if (grupoId != null) {
+            // Retorna apenas membros ativos do grupo indicado
+            return GrupoMembro.<GrupoMembro>find("grupo.id = ?1 AND ativo = true", grupoId)
+                .stream()
+                .map(m -> toDTO(m.usuario))
+                .collect(Collectors.toList());
+        }
         return Usuario.<Usuario>listAll()
             .stream()
             .map(this::toDTO)

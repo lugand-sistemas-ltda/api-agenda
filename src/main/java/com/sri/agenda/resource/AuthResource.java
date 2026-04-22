@@ -2,6 +2,7 @@ package com.sri.agenda.resource;
 
 import at.favre.lib.crypto.bcrypt.BCrypt;
 import com.sri.agenda.dto.AuthDTO;
+import com.sri.agenda.entity.GrupoMembro;
 import com.sri.agenda.entity.Sessao;
 import com.sri.agenda.entity.Usuario;
 import jakarta.transaction.Transactional;
@@ -109,12 +110,18 @@ public class AuthResource {
     }
 
     private AuthDTO.LoginResponse toResponse(Sessao s) {
+        String papel = GrupoMembro
+                .<GrupoMembro>find("usuario.id = ?1 and ativo = true", s.usuario.id)
+                .firstResultOptional()
+                .map(gm -> gm.papel.name())
+                .orElse(null);
         return new AuthDTO.LoginResponse(
                 s.id.toString(),
                 s.usuario.id.toString(),
                 s.usuario.nome,
                 s.usuario.email,
-                s.usuario.matricula
+                s.usuario.matricula,
+                papel
         );
     }
 }
