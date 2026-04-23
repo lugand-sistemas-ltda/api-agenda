@@ -263,6 +263,29 @@ public class Compromisso extends PanacheEntityBase {
             "      AND ip.visivel_na_agenda = true " +
             "      AND (ip.aceito IS NULL OR ip.aceito = true) " +
             "  ) " +
+            "  AND i.data_inicio <= ?3 AND i.data_fim >= ?2 " +
+
+            "UNION ALL " +
+
+            // 8. [ADR-009 PM-002] visualizar.agenda_subordinado — Administrador e Gestor veem
+            //    itens 'privado' em agendas compartilhadas (grupo_id NOT NULL) do seu grupo.
+            //    Respeita a permissão 'compromisso.visualizar.agenda_subordinado' na tabela
+            //    papel_permissao — garante que apenas papéis com essa concessão explícita
+            //    enxergam o conteúdo privado de subordinados.
+            //    Referência: comentário original do ENUM item_visibilidade em V4:
+            //    'privado = apenas o dono da agenda de origem (+ gestores/admin por hierarquia)'
+            "SELECT i.* FROM agenda.item_agenda i " +
+            "JOIN agenda.agenda a ON a.id = i.agenda_id " +
+            "JOIN agenda.grupo_membro gm ON gm.grupo_id = a.grupo_id " +
+            "  AND gm.usuario_id = ?1 AND gm.ativo = true " +
+            "WHERE i.visibilidade = 'privado' " +
+            "  AND a.grupo_id IS NOT NULL " +
+            "  AND EXISTS ( " +
+            "    SELECT 1 FROM agenda.papel_permissao pp " +
+            "    JOIN agenda.permissao p ON p.id = pp.permissao_id " +
+            "    WHERE pp.papel::text = gm.papel::text " +
+            "      AND p.codigo = 'compromisso.visualizar.agenda_subordinado' " +
+            "  ) " +
             "  AND i.data_inicio <= ?3 AND i.data_fim >= ?2";
 
         return (List<Compromisso>) getEntityManager()
