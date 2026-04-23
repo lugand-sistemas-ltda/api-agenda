@@ -6,8 +6,12 @@ import com.sri.agenda.entity.Agenda;
 import com.sri.agenda.entity.Compromisso;
 import com.sri.agenda.entity.ItemParticipante;
 import com.sri.agenda.entity.ItemRenderizacao;
+import com.sri.agenda.entity.PapelGrupo;
 import com.sri.agenda.entity.Sessao;
 import com.sri.agenda.entity.Usuario;
+import com.sri.agenda.security.PermissaoCodigo;
+import jakarta.inject.Inject;
+import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
@@ -28,6 +32,9 @@ import java.util.stream.Collectors;
 @Consumes(MediaType.APPLICATION_JSON)
 @Tag(name = "Compromissos")
 public class CompromissoResource {
+
+    @Inject
+    EntityManager em;
 
     // -------------------------------------------------------------------------
     // READ
@@ -134,6 +141,48 @@ public class CompromissoResource {
     @Operation(summary = "Criar item de agenda")
     public Response criar(@HeaderParam("X-Session-Id") String sessionId,
                           @Valid CompromissoDTO.Request req) {
+
+        // --- Enforcement básico (Iteração 2.3): sessão obrigatória ---
+        UUID criadorId = resolverCriadorId(sessionId);
+        if (criadorId == null) {
+            return Response.status(Response.Status.UNAUTHORIZED)
+                .entity("{\"erro\":\"Sessão inválida ou expirada. Faça login novamente.\"}")
+                .build();
+        }
+
+        // --- Verificação de permissão de criação ---
+        PapelGrupo papel = resolverPapel(criadorId);
+        if (papel == null) {
+            return Response.status(Response.Status.FORBIDDEN)
+                .entity("{\"erro\":\"Usuário sem papel em nenhum grupo ativo.\"}")
+                .build();
+        }
+
+        // Determina o código de permissão necessário:
+        // - Criando para si mesmo                → compromisso.criar.proprio
+        // - Criando para outra pessoa             → compromisso.criar.para_subordinado
+        //   (papéis sem essa permissão, como 'operador', serão rejeitados)
+        boolean paraSiMesmo = req.responsavelId == null || req.responsavelId.equals(criadorId);
+        String codigoNecessario = paraSiMesmo
+            ? PermissaoCodigo.COMPROMISSO_CRIAR_PROPRIO
+            : PermissaoCodigo.COMPROMISSO_CRIAR_PARA_SUBORDINADO;
+
+        if (!papelTemPermissao(papel.name(), codigoNecessario)) {
+            return Response.status(Response.Status.FORBIDDEN)
+                .entity("{\"erro\":\"Sem permissão para criar este tipo de compromisso com seu papel atual.\"}")
+                .build();
+        }
+
+        // --- Verificação de visibilidade permitida ---
+        if (req.visibilidade != null) {
+            String codVis = "visibilidade.definir." + req.visibilidade.name();
+            if (!papelTemPermissao(papel.name(), codVis)) {
+                return Response.status(Response.Status.FORBIDDEN)
+                    .entity("{\"erro\":\"Sem permissão para definir visibilidade '\" + req.visibilidade.name() + \"' com seu papel atual.\"}")
+                    .build();
+            }
+        }
+
         Compromisso c = new Compromisso();
         c.titulo      = req.titulo;
         c.descricao   = req.descricao;
@@ -206,14 +255,10 @@ public class CompromissoResource {
         c.persist();
 
         // Registra participação (ADR-009 PM-003) — criador + responsável na item_participante.
-        // Requer sessão válida para identificar o criador; sem sessão, ignora silenciosamente
-        // (comportamento da PoC — Iteração 3 tornará a sessão obrigatória via ContainerRequestFilter).
-        UUID criadorId = resolverCriadorId(sessionId);
-        if (criadorId != null) {
-            c.criadoPor = Usuario.findById(criadorId);
-            UUID responsavelId = c.responsavel != null ? c.responsavel.id : criadorId;
-            ItemParticipante.registrarCriacao(c.id, criadorId, responsavelId);
-        }
+        // criadorId já foi resolvido e validado no início do método (enforcement obrigatório).
+        c.criadoPor = Usuario.findById(criadorId);
+        UUID responsavelId = c.responsavel != null ? c.responsavel.id : criadorId;
+        ItemParticipante.registrarCriacao(c.id, criadorId, responsavelId);
 
         return Response.status(Response.Status.CREATED).entity(toDTO(c)).build();
     }
@@ -259,6 +304,10 @@ public class CompromissoResource {
                     .build();
             }
             c.agenda = agenda;
+        }
+
+        if (req.visibilidade != null) {
+            c.visibilidade = req.visibilidade;
         }
 
         if (req.outrosResponsaveisIds != null) {
@@ -341,6 +390,38 @@ public class CompromissoResource {
         } catch (IllegalArgumentException e) {
             return null;
         }
+    }
+
+    /**
+     * Retorna o papel do usuário no seu grupo ativo.
+     * Usa o primeiro grupo ativo encontrado — na PoC cada usuário pertence a uma única unidade.
+     */
+    private PapelGrupo resolverPapel(UUID usuarioId) {
+        return (PapelGrupo) em
+            .createNativeQuery(
+                "SELECT gm.papel FROM agenda.grupo_membro gm " +
+                "WHERE gm.usuario_id = :uid AND gm.ativo = true LIMIT 1")
+            .setParameter("uid", usuarioId)
+            .getResultStream()
+            .findFirst()
+            .map(v -> PapelGrupo.valueOf(v.toString()))
+            .orElse(null);
+    }
+
+    /**
+     * Verifica se o papel possui a permissão indicada pelo código (Iteração 2.3).
+     * Consulta diretamente {@code agenda.papel_permissao} JOIN {@code agenda.permissao}.
+     */
+    private boolean papelTemPermissao(String papel, String codigo) {
+        Long count = (Long) em
+            .createNativeQuery(
+                "SELECT COUNT(*) FROM agenda.papel_permissao pp " +
+                "JOIN agenda.permissao p ON p.id = pp.permissao_id " +
+                "WHERE pp.papel = :papel AND p.codigo = :codigo")
+            .setParameter("papel", papel)
+            .setParameter("codigo", codigo)
+            .getSingleResult();
+        return count != null && count > 0;
     }
 
     /** Valor padrão de renderizacao baseado no tipo (ADR-005 IA-003). */

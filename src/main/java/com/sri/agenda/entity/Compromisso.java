@@ -174,13 +174,27 @@ public class Compromisso extends PanacheEntityBase {
 
             "UNION ALL " +
 
-            // 3. Nível unidade: todos os membros da unidade (ponto_facultativo, recesso)
+            // 3. Nível unidade via agenda de unidade/grupo (agenda tem grupo_id preenchido)
             "SELECT i.* FROM agenda.item_agenda i " +
             "JOIN agenda.agenda a ON a.id = i.agenda_id " +
             "JOIN agenda.grupo g ON g.id = a.grupo_id " +
             "JOIN agenda.grupo_membro gm ON gm.grupo_id = g.id " +
             "WHERE i.visibilidade = 'unidade' " +
             "  AND gm.usuario_id = ?1 AND gm.ativo = true " +
+            "  AND i.data_inicio <= ?3 AND i.data_fim >= ?2 " +
+
+            "UNION ALL " +
+
+            // 3b. Nível unidade via agenda pessoal: item criado na agenda pessoal de um colega
+            //     de grupo com visibilidade 'unidade'. Cobre o caso onde grupo_id é NULL na
+            //     agenda — visível para todos os membros ativos do mesmo grupo do proprietário.
+            "SELECT i.* FROM agenda.item_agenda i " +
+            "JOIN agenda.agenda a ON a.id = i.agenda_id " +
+            "JOIN agenda.grupo_membro gm_owner ON gm_owner.usuario_id = a.proprietario_id AND gm_owner.ativo = true " +
+            "JOIN agenda.grupo_membro gm_view  ON gm_view.grupo_id = gm_owner.grupo_id " +
+            "  AND gm_view.usuario_id = ?1 AND gm_view.ativo = true " +
+            "WHERE i.visibilidade = 'unidade' " +
+            "  AND a.grupo_id IS NULL " +
             "  AND i.data_inicio <= ?3 AND i.data_fim >= ?2 " +
 
             "UNION ALL " +
