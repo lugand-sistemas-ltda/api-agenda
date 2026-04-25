@@ -1,10 +1,13 @@
 package com.sri.agenda.resource;
 
 import at.favre.lib.crypto.bcrypt.BCrypt;
+import com.sri.agenda.audit.AuditAuthService;
+import com.sri.agenda.audit.AuditContext;
 import com.sri.agenda.dto.AuthDTO;
 import com.sri.agenda.entity.GrupoMembro;
 import com.sri.agenda.entity.Sessao;
 import com.sri.agenda.entity.Usuario;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
@@ -22,6 +25,12 @@ import java.util.UUID;
 @Consumes(MediaType.APPLICATION_JSON)
 @Tag(name = "Autenticação")
 public class AuthResource {
+
+    @Inject
+    AuditContext auditContext;
+
+    @Inject
+    AuditAuthService auditAuth;
 
     private Response unauthorized() {
         return Response.status(Response.Status.UNAUTHORIZED)
@@ -41,6 +50,7 @@ public class AuthResource {
         // Busca usuário pela matrícula
         Optional<Usuario> opt = Usuario.find("matricula", body.matricula).firstResultOptional();
         if (opt.isEmpty()) {
+            auditAuth.registrarLoginFalhou(null, auditContext.getIpOrigem());
             return unauthorized();
         }
         Usuario usuario = opt.get();
@@ -49,6 +59,7 @@ public class AuthResource {
         BCrypt.Result resultado = BCrypt.verifyer()
                 .verify(body.senha.toCharArray(), usuario.senhaHash);
         if (!resultado.verified) {
+            auditAuth.registrarLoginFalhou(usuario.id, auditContext.getIpOrigem());
             return unauthorized();
         }
 
@@ -56,6 +67,13 @@ public class AuthResource {
         Sessao sessao = new Sessao();
         sessao.usuario = usuario;
         sessao.persist();
+
+        String papel = GrupoMembro.<GrupoMembro>find("usuario.id = ?1 and ativo = true", usuario.id)
+                .firstResultOptional()
+                .map(gm -> gm.papel.name())
+                .orElse(null);
+
+        auditAuth.registrarLogin(usuario.id, sessao.id, papel, auditContext.getIpOrigem());
 
         return Response.ok(toResponse(sessao)).build();
     }
@@ -89,6 +107,13 @@ public class AuthResource {
         if (sessionId != null && !sessionId.isBlank()) {
             try {
                 Sessao.deleteById(UUID.fromString(sessionId));
+                if (auditContext.getUsuarioId() != null) {
+                    auditAuth.registrarLogout(
+                            auditContext.getUsuarioId(),
+                            auditContext.getSessaoId(),
+                            auditContext.getPapel(),
+                            auditContext.getIpOrigem());
+                }
             } catch (IllegalArgumentException ignored) {
                 // UUID malformado — ignorar silenciosamente
             }

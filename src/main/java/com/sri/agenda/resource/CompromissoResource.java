@@ -1,5 +1,6 @@
 package com.sri.agenda.resource;
 
+import com.sri.agenda.audit.AuditContextInjector;
 import com.sri.agenda.dto.CompromissoDTO;
 import com.sri.agenda.dto.UsuarioDTO;
 import com.sri.agenda.entity.Agenda;
@@ -35,6 +36,9 @@ public class CompromissoResource {
 
     @Inject
     EntityManager em;
+
+    @Inject
+    AuditContextInjector auditInjector;
 
     // -------------------------------------------------------------------------
     // READ
@@ -141,6 +145,8 @@ public class CompromissoResource {
     @Operation(summary = "Criar item de agenda")
     public Response criar(@HeaderParam("X-Session-Id") String sessionId,
                           @Valid CompromissoDTO.Request req) {
+
+        auditInjector.injetar(em);
 
         // --- Enforcement básico (Iteração 2.3): sessão obrigatória ---
         UUID criadorId = resolverCriadorId(sessionId);
@@ -272,6 +278,7 @@ public class CompromissoResource {
     @Transactional
     @Operation(summary = "Atualizar item de agenda")
     public Response atualizar(@PathParam("id") UUID id, @Valid CompromissoDTO.Request req) {
+        auditInjector.injetar(em);
         Compromisso c = Compromisso.findById(id);
         if (c == null) return Response.status(Response.Status.NOT_FOUND).build();
 
@@ -329,6 +336,7 @@ public class CompromissoResource {
     @Transactional
     @Operation(summary = "Remover item de agenda")
     public Response remover(@PathParam("id") UUID id) {
+        auditInjector.injetar(em);
         boolean deleted = Compromisso.deleteById(id);
         return deleted
             ? Response.noContent().build()

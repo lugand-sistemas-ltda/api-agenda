@@ -1,8 +1,11 @@
 package com.sri.agenda.resource;
 
+import com.sri.agenda.audit.AuditContextInjector;
 import com.sri.agenda.dto.UsuarioDTO;
 import com.sri.agenda.entity.GrupoMembro;
 import com.sri.agenda.entity.Usuario;
+import jakarta.inject.Inject;
+import jakarta.persistence.EntityManager;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.*;
@@ -20,6 +23,12 @@ import java.util.stream.Collectors;
 @Consumes(MediaType.APPLICATION_JSON)
 @Tag(name = "Usuários")
 public class UsuarioResource {
+
+    @Inject
+    EntityManager em;
+
+    @Inject
+    AuditContextInjector auditInjector;
 
     @GET
     @Operation(summary = "Listar usuários. Filtro opcional: grupoId (retorna apenas membros ativos do grupo)")
@@ -50,6 +59,7 @@ public class UsuarioResource {
     @Transactional
     @Operation(summary = "Criar usuário")
     public Response criar(@Valid UsuarioDTO.Request req) {
+        auditInjector.injetar(em);
         Usuario u = new Usuario();
         u.nome  = req.nome;
         u.email = req.email;
@@ -62,6 +72,7 @@ public class UsuarioResource {
     @Transactional
     @Operation(summary = "Atualizar usuário")
     public Response atualizar(@PathParam("id") UUID id, @Valid UsuarioDTO.Request req) {
+        auditInjector.injetar(em);
         Usuario u = Usuario.findById(id);
         if (u == null) return Response.status(Response.Status.NOT_FOUND).build();
         u.nome  = req.nome;
@@ -74,6 +85,7 @@ public class UsuarioResource {
     @Transactional
     @Operation(summary = "Remover usuário")
     public Response remover(@PathParam("id") UUID id) {
+        auditInjector.injetar(em);
         boolean deleted = Usuario.deleteById(id);
         return deleted
             ? Response.noContent().build()
