@@ -1,5 +1,6 @@
 package com.sri.agenda.resource;
 
+import at.favre.lib.crypto.bcrypt.BCrypt;
 import com.sri.agenda.audit.AuditContextInjector;
 import com.sri.agenda.dto.UsuarioDTO;
 import com.sri.agenda.entity.GrupoMembro;
@@ -61,8 +62,11 @@ public class UsuarioResource {
     public Response criar(@Valid UsuarioDTO.Request req) {
         auditInjector.injetar(em);
         Usuario u = new Usuario();
-        u.nome  = req.nome;
-        u.email = req.email;
+        u.nome      = req.nome;
+        u.email     = req.email;
+        u.matricula = req.matricula;
+        String rawSenha = (req.senha != null && !req.senha.isBlank()) ? req.senha : "SRI@2026";
+        u.senhaHash = BCrypt.withDefaults().hashToString(12, rawSenha.toCharArray());
         u.persist();
         return Response.status(Response.Status.CREATED).entity(toDTO(u)).build();
     }
@@ -75,8 +79,10 @@ public class UsuarioResource {
         auditInjector.injetar(em);
         Usuario u = Usuario.findById(id);
         if (u == null) return Response.status(Response.Status.NOT_FOUND).build();
-        u.nome  = req.nome;
-        u.email = req.email;
+        u.nome      = req.nome;
+        u.email     = req.email;
+        if (req.matricula != null && !req.matricula.isBlank()) u.matricula = req.matricula;
+        if (req.senha     != null && !req.senha.isBlank())     u.senhaHash = BCrypt.withDefaults().hashToString(12, req.senha.toCharArray());
         return Response.ok(toDTO(u)).build();
     }
 
